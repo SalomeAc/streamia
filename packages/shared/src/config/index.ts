@@ -26,7 +26,7 @@ const getApiUrl = (): string => {
     // Not in Vite environment
   }
   
-  return 'http://localhost:8080/api';
+  return 'http://localhost:3000/api';
 };
 
 const getConfig = (): StreamiaConfig => {

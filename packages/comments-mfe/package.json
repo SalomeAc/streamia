@@ -11,7 +11,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",
-    "@streamia/shared": "workspace:*"
+    "@streamia/shared": "file:../shared"
   },
   "devDependencies": {
     "@originjs/vite-plugin-federation": "^1.3.5",

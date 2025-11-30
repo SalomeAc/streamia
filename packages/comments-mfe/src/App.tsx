@@ -11,7 +11,7 @@ export default function App() {
   }
 
   // TODO: Get token from shared store or context
-  const token = localStorage.getItem("auth_token") || undefined;
+  const token = localStorage.getItem("authToken") || undefined;
 
   return <Comments movieId={id} token={token} />;
 }
