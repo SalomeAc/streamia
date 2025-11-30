@@ -11,6 +11,21 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # ============================================
+# DETECCIÓN DE SISTEMA OPERATIVO
+# ============================================
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)     OS="linux";;
+        Darwin*)    OS="mac";;
+        CYGWIN*|MINGW*|MSYS*) OS="windows";;
+        *)          OS="unknown";;
+    esac
+    echo "Sistema detectado: $OS"
+}
+
+detect_os
+
+# ============================================
 # CONFIGURACIÓN DE MICROFRONTENDS
 # ============================================
 # Para añadir un nuevo MFE:
@@ -33,13 +48,36 @@ SHELL_DIR="shell"
 # FUNCIONES AUXILIARES
 # ============================================
 
-# Función para matar proceso en un puerto específico
+# Función para matar proceso en un puerto específico (compatible con Windows/Linux/Mac)
 kill_port() {
     local port=$1
-    local pid=$(lsof -ti :$port 2>/dev/null)
-    if [ ! -z "$pid" ]; then
-        echo "  Matando proceso en puerto $port (PID: $pid)"
-        kill -9 $pid 2>/dev/null || true
+    
+    if [ "$OS" = "windows" ]; then
+        # Windows (Git Bash / MSYS / Cygwin)
+        local pid=$(netstat -ano 2>/dev/null | grep ":$port " | grep "LISTENING" | awk '{print $5}' | head -1)
+        if [ ! -z "$pid" ] && [ "$pid" != "0" ]; then
+            echo "  Matando proceso en puerto $port (PID: $pid)"
+            taskkill //F //PID $pid 2>/dev/null || true
+        fi
+    else
+        # Linux / macOS
+        local pid=$(lsof -ti :$port 2>/dev/null)
+        if [ ! -z "$pid" ]; then
+            echo "  Matando proceso en puerto $port (PID: $pid)"
+            kill -9 $pid 2>/dev/null || true
+        fi
+    fi
+}
+
+# Función para matar procesos de vite
+kill_vite_processes() {
+    echo "  Matando procesos de vite..."
+    if [ "$OS" = "windows" ]; then
+        # Windows: matar procesos node que contengan vite
+        taskkill //F //IM node.exe 2>/dev/null || true
+    else
+        # Linux / macOS
+        pkill -f "vite" 2>/dev/null || true
     fi
 }
 
@@ -57,25 +95,23 @@ cleanup_ports() {
     done
     
     # Matar cualquier proceso de vite restante
-    pkill -f "vite" 2>/dev/null || true
+    kill_vite_processes
     
     # Esperar a que los puertos se liberen
     sleep 2
+}
+
+# Función para verificar si un puerto está en uso
+check_port_in_use() {
+    local port=$1
     
-    # Verificar que los puertos estén libres
-    local all_ports=($SHELL_PORT)
-    for config in "${MFE_CONFIGS[@]}"; do
-        IFS=':' read -r name folder port <<< "$config"
-        all_ports+=($port)
-    done
-    
-    for port in "${all_ports[@]}"; do
-        if lsof -ti :$port > /dev/null 2>&1; then
-            echo -e "${YELLOW}Advertencia: Puerto $port todavía en uso${NC}"
-            kill -9 $(lsof -ti :$port) 2>/dev/null || true
-            sleep 1
-        fi
-    done
+    if [ "$OS" = "windows" ]; then
+        netstat -ano 2>/dev/null | grep ":$port " | grep "LISTENING" > /dev/null 2>&1
+        return $?
+    else
+        lsof -ti :$port > /dev/null 2>&1
+        return $?
+    fi
 }
 
 # Función para construir un MFE
@@ -187,7 +223,11 @@ for config in "${MFE_CONFIGS[@]}"; do
     echo "   tail -f logs/$folder.log"
 done
 echo ""
-echo "Para detener: pkill -f vite"
+if [ "$OS" = "windows" ]; then
+    echo "Para detener: taskkill //F //IM node.exe"
+else
+    echo "Para detener: pkill -f vite"
+fi
 echo ""
 
 # Mantener el script corriendo y mostrar logs del shell
